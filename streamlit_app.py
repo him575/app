@@ -102,6 +102,7 @@ class DualViewSwinModel(nn.Module):
 # -----------------------------------------------------------------------------
 # 5. Model Loading & Hugging Face Auto-Downloading Function
 # -----------------------------------------------------------------------------
+
 @st.cache_resource
 def load_single_fold_model(fold_num):
     filename = f"final_swin_fold_{fold_num}.pth"
@@ -122,19 +123,32 @@ def load_single_fold_model(fold_num):
             
     model = DualViewSwinModel(num_classes=6)
     checkpoint = torch.load(filename, map_location=device)
+    
     if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
         state_dict = checkpoint["state_dict"]
     else:
         state_dict = checkpoint
-
-# Print the first 5 keys in your checkpoint to see their naming style
-    print("Keys in checkpoint:", list(state_dict.keys())[:5])
-    
-    if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
-        model.load_state_dict(checkpoint["state_dict"])
-    else:
-        model.load_state_dict(checkpoint)
         
+    # --- AUTOMATIC KEY REMAPPING ---
+    # Remaps raw checkpoint keys to fit the DualViewSwinModel structure
+    new_state_dict = {}
+    for k, v in state_dict.items():
+        if k.startswith("global_branch.") or k.startswith("diag_branch.") or k.startswith("classifier."):
+            new_state_dict[k] = v
+        elif k.startswith("backbone."):
+            # Map generic backbone keys to both branches
+            clean_k = k.replace("backbone.", "")
+            new_state_dict[f"global_branch.{clean_k}"] = v
+            new_state_dict[f"diag_branch.{clean_k}"] = v
+        else:
+            # If keys have no prefix, map them to both branches and classifier accordingly
+            if "classifier" in k or "fc" in k or "head" in k:
+                new_state_dict[k.replace("model.", "")] = v
+            else:
+                new_state_dict[f"global_branch.{k}"] = v
+                new_state_dict[f"diag_branch.{k}"] = v
+                
+    model.load_state_dict(new_state_dict, strict=False)
     model.to(device)
     model.eval()
     return model, device
