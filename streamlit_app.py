@@ -102,26 +102,26 @@ class DualViewSwinModel(nn.Module):
 # -----------------------------------------------------------------------------
 # 5. Model Loading & Key-Remapping Auto-Downloader
 # -----------------------------------------------------------------------------
+from huggingface_hub import hf_hub_download
+
 @st.cache_resource
 def load_single_fold_model(fold_num):
     filename = f"final_swin_fold_{fold_num}.pth"
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    # Download weights from Hugging Face if not locally cached
-    if not os.path.exists(filename):
-        url = f"{HF_BASE_URL}/{filename}"
+    try:
         with st.spinner(f"Downloading model weights for Fold {fold_num} from Hugging Face..."):
-            response = requests.get(url, stream=True)
-            if response.status_code == 200:
-                with open(filename, "wb") as f:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        f.write(chunk)
-            else:
-                st.error(f"Failed to download Fold {fold_num} weights from Hugging Face (Status code: {response.status_code}).")
-                st.stop()
+            # Automatically downloads and caches the file securely via Hugging Face Hub API
+            weights_path = hf_hub_download(
+                repo_id="tav1212/VKC-swin-weights",  # <-- REPLACE WITH YOUR ACTUAL HF USERNAME/REPO
+                filename=filename
+            )
+    except Exception as e:
+        st.error(f"Failed to download Fold {fold_num} weights. Ensure your repository is **Public** and the repo ID is correct. Error: {e}")
+        st.stop()
             
     model = DualViewSwinModel(num_classes=6)
-    checkpoint = torch.load(filename, map_location=device)
+    checkpoint = torch.load(weights_path, map_location=device)
     
     if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
         state_dict = checkpoint["state_dict"]
