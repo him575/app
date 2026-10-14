@@ -122,13 +122,13 @@ def load_single_fold_model(fold_num):
             
     model = DualViewSwinModel(num_classes=6)
     checkpoint = torch.load(filename, map_location=device)
-if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
-    state_dict = checkpoint["state_dict"]
-else:
-    state_dict = checkpoint
+    if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
+        state_dict = checkpoint["state_dict"]
+    else:
+        state_dict = checkpoint
 
 # Print the first 5 keys in your checkpoint to see their naming style
-print("Keys in checkpoint:", list(state_dict.keys())[:5])
+    print("Keys in checkpoint:", list(state_dict.keys())[:5])
     
     if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
         model.load_state_dict(checkpoint["state_dict"])
