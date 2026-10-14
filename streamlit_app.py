@@ -34,9 +34,9 @@ CLASS_NAMES = [
 ]
 
 # -----------------------------------------------------------------------------
-# 2. Hugging Face Base URL (REPLACE 'YOUR_USERNAME' WITH YOUR ACTUAL USERNAME)
+# 2. Hugging Face Base URL
 # -----------------------------------------------------------------------------
-HF_BASE_URL = "https://huggingface.co/YOUR_USERNAME/ocular-swin-weights/resolve/main"
+HF_BASE_URL = "https://huggingface.co/tav1212/VKC-swin-weights/resolve/main"
 
 # -----------------------------------------------------------------------------
 # 3. Custom Feature Engineering (Dual-View Generator)
