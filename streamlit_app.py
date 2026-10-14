@@ -7,6 +7,15 @@ import numpy as np
 import cv2
 import timm
 
+--extra-index-url https://download.pytorch.org/whl/cpu
+streamlit
+torch
+torchvision
+timm
+opencv-python-headless
+Pillow
+numpy
+
 # -----------------------------------------------------------------------------
 # 1. Page Configuration & UI Setup
 # -----------------------------------------------------------------------------
