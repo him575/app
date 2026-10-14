@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import torch
 import torch.nn as nn
@@ -6,22 +7,21 @@ from PIL import Image
 import numpy as np
 import cv2
 import timm
-
-
+import gdown
 
 # -----------------------------------------------------------------------------
 # 1. Page Configuration & UI Setup
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Ocular Pathologies Diagnostic System",
+    page_title="Anterior Ocular Diagnostic System",
     page_icon="👁️",
     layout="centered"
 )
 
-st.title("👁️ Anterior Segment Ocular Diagnostic System")
+st.title("👁️ Anterior Ocular Diagnostic System")
 st.write(
-    "Upload a clear photograph of an eye to run automated diagnostic screening "
-    "across 6 anterior segment conditions."
+    "Upload a photograph of an anterior segment eye condition to run diagnostic "
+    "screening using a 5-Fold Dual-View Swin Transformer Ensemble."
 )
 
 CLASS_NAMES = [
@@ -34,7 +34,18 @@ CLASS_NAMES = [
 ]
 
 # -----------------------------------------------------------------------------
-# 2. Custom Feature Engineering (Dual-View Generator)
+# 2. Google Drive File IDs Mapping (Replace with your actual IDs)
+# -----------------------------------------------------------------------------
+DRIVE_FILE_IDS = {
+    1: "https://drive.google.com/file/d/1knWq2jfBhrAA_cUIaw2u0iEih-IUh9ir/view?usp=drive_link",
+    2: "https://drive.google.com/file/d/11YOuy5KexQocaaDl03hFlkBWPTCN0ytr/view?usp=drive_link",
+    3: "https://drive.google.com/file/d/1JwIi84FLbGLCftRo_9tktjjg5Mlf3GN-/view?usp=drive_link",
+    4: "https://drive.google.com/file/d/1WwxbeukB3HIMH9OGXQOyCpN9Lp1ZcV6A/view?usp=drive_link",
+    5: "https://drive.google.com/file/d/1w9M28roDaM49sawfROJBipcRIDKd3BDK/view?usp=drive_link",
+}
+
+# -----------------------------------------------------------------------------
+# 3. Custom Feature Engineering (Dual-View Generator)
 # -----------------------------------------------------------------------------
 def create_diagnostic_view(image_pil):
     """
@@ -65,14 +76,14 @@ def create_diagnostic_view(image_pil):
 
 
 # -----------------------------------------------------------------------------
-# 3. Dual-View Swin Transformer Model Definition
+# 4. Dual-View Swin Transformer Model Architecture
 # -----------------------------------------------------------------------------
 class DualViewSwinModel(nn.Module):
     def __init__(self, num_classes=6, backbone_name="swin_base_patch4_window12_384"):
         super(DualViewSwinModel, self).__init__()
-        # Global RGB Backbone
+        # Global RGB Branch
         self.global_branch = timm.create_model(backbone_name, pretrained=False, num_classes=0)
-        # Diagnostic Feature Map Backbone
+        # Diagnostic Feature Branch
         self.diag_branch = timm.create_model(backbone_name, pretrained=False, num_classes=0)
         
         in_features = self.global_branch.num_features * 2  # 1024 + 1024 = 2048
@@ -95,15 +106,27 @@ class DualViewSwinModel(nn.Module):
 
 
 # -----------------------------------------------------------------------------
-# 4. Model Loading with Streamlit Caching
+# 5. Model Loading & Auto-Downloading Function
 # -----------------------------------------------------------------------------
 @st.cache_resource
-def load_trained_model(weights_path="final_swin_fold_1.pth"):
+def load_single_fold_model(fold_num):
+    weights_path = f"final_swin_fold_{fold_num}.pth"
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = DualViewSwinModel(num_classes=6)
     
-    # Load model weights
+    # Download weights if not locally cached
+    if not os.path.exists(weights_path):
+        file_id = DRIVE_FILE_IDS.get(fold_num)
+        if not file_id or "FILE_ID_" in file_id:
+            st.error(f"Google Drive File ID for Fold {fold_num} is missing or unconfigured.")
+            st.stop()
+            
+        with st.spinner(f"Downloading model weights for Fold {fold_num} from Google Drive..."):
+            url = f"https://drive.google.com/uc?id={file_id}"
+            gdown.download(url, weights_path, quiet=False)
+            
+    model = DualViewSwinModel(num_classes=6)
     checkpoint = torch.load(weights_path, map_location=device)
+    
     if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
         model.load_state_dict(checkpoint["state_dict"])
     else:
@@ -114,7 +137,7 @@ def load_trained_model(weights_path="final_swin_fold_1.pth"):
     return model, device
 
 # -----------------------------------------------------------------------------
-# 5. Image Preprocessing Pipelines
+# 6. Preprocessing Pipeline
 # -----------------------------------------------------------------------------
 transform_pipeline = transforms.Compose([
     transforms.Resize((384, 384)),
@@ -123,52 +146,53 @@ transform_pipeline = transforms.Compose([
 ])
 
 # -----------------------------------------------------------------------------
-# 6. User Interface & Execution Logic
+# 7. User Interface & Ensemble Prediction Logic
 # -----------------------------------------------------------------------------
-uploaded_file = st.file_uploader("Choose an eye photograph...", type=["jpg", "jpeg", "png"])
+uploaded_file = st.file_uploader("Upload an eye image (JPG, JPEG, PNG)...", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
-    # Display uploaded image
     raw_image = Image.open(uploaded_file).convert("RGB")
     
     col1, col2 = st.columns(2)
     with col1:
-        st.image(raw_image, caption="Uploaded Global View", use_column_width=True)
+        st.image(raw_image, caption="Global RGB View", use_column_width=True)
     
     with col2:
-        # Generate and show diagnostic feature map
         diag_image = create_diagnostic_view(raw_image)
-        st.image(diag_image, caption="Generated Diagnostic Map (Vascular/Texture)", use_column_width=True)
+        st.image(diag_image, caption="Diagnostic View (CLAHE/Green/Unsharp)", use_column_width=True)
         
-    if st.button("Run Diagnostic Screening"):
-        with st.spinner("Analyzing ocular features through Dual-View Swin Transformer..."):
+    if st.button("Run Diagnostic Analysis"):
+        with st.spinner("Running 5-Fold Ensemble Committee Analysis..."):
             try:
-                # Load model
-                model, device = load_trained_model("final_swin_fold_1.pth")
-                
-                # Preprocess both inputs
+                # Preprocess inputs
+                device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
                 tensor_global = transform_pipeline(raw_image).unsqueeze(0).to(device)
                 tensor_diag = transform_pipeline(diag_image).unsqueeze(0).to(device)
                 
-                # Inference
-                with torch.no_grad():
-                    outputs = model(tensor_global, tensor_diag)
-                    probabilities = torch.softmax(outputs, dim=1)[0].cpu().numpy()
+                ensemble_probs = np.zeros(6)
                 
-                predicted_idx = np.argmax(probabilities)
+                # Predict across all 5 folds
+                for fold in range(1, 6):
+                    model, dev = load_single_fold_model(fold)
+                    with torch.no_grad():
+                        outputs = model(tensor_global, tensor_diag)
+                        fold_probs = torch.softmax(outputs, dim=1)[0].cpu().numpy()
+                        ensemble_probs += fold_probs / 5.0
+                
+                predicted_idx = int(np.argmax(ensemble_probs))
                 predicted_label = CLASS_NAMES[predicted_idx]
-                confidence = probabilities[predicted_idx] * 100
+                confidence = float(ensemble_probs[predicted_idx] * 100)
                 
-                # Display Results
-                st.success(f"**Primary Diagnosis:** {predicted_label}")
-                st.metric(label="Model Confidence", value=f"{confidence:.2f}%")
+                # Display Prediction Results
+                st.success(f"**Predicted Diagnosis (Ensemble Consensus):** {predicted_label}")
+                st.metric(label="Ensemble Model Confidence", value=f"{confidence:.2f}%")
                 
-                # Display Probability Distribution
-                st.subheader("Diagnostic Probability Breakdown")
+                # Display Probability Breakdown
+                st.subheader("Class Probability Distribution")
                 for i, class_name in enumerate(CLASS_NAMES):
-                    prob_pct = probabilities[i] * 100
+                    prob_pct = float(ensemble_probs[i] * 100)
                     st.write(f"**{class_name}**: {prob_pct:.2f}%")
-                    st.progress(float(probabilities[i]))
+                    st.progress(float(ensemble_probs[i]))
                     
             except Exception as e:
-                st.error(f"Error during model inference: {e}")
+                st.error(f"Error executing model inference: {e}")
