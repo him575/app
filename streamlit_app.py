@@ -108,6 +108,7 @@ class DualViewSwinModel(nn.Module):
 # -----------------------------------------------------------------------------
 # 5. Model Loading & Auto-Downloading Function
 # -----------------------------------------------------------------------------
+
 @st.cache_resource
 def load_single_fold_model(fold_num):
     weights_path = f"final_swin_fold_{fold_num}.pth"
@@ -121,8 +122,8 @@ def load_single_fold_model(fold_num):
             st.stop()
             
         with st.spinner(f"Downloading model weights for Fold {fold_num} from Google Drive..."):
-            url = f"https://drive.google.com/uc?id={file_id}"
-            gdown.download(url, weights_path, quiet=False, fuzzy=True)
+            # Using gdown's id parameter directly
+            gdown.download(id=file_id, output=weights_path, quiet=False)
             
     model = DualViewSwinModel(num_classes=6)
     checkpoint = torch.load(weights_path, map_location=device)
