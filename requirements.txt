@@ -6,4 +6,4 @@ timm
 opencv-python-headless
 Pillow
 numpy
-gdown
+requests
