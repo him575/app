@@ -7,7 +7,7 @@ from PIL import Image
 import numpy as np
 import cv2
 import timm
-import gdown
+import requests
 
 # -----------------------------------------------------------------------------
 # 1. Page Configuration & UI Setup
@@ -21,7 +21,7 @@ st.set_page_config(
 st.title("👁️ Anterior Ocular Diagnostic System")
 st.write(
     "Upload a photograph of an anterior segment eye condition to run diagnostic "
-    "screening using a 5-Fold Dual-View Swin Transformer Ensemble."
+    "screening using your 5-Fold Dual-View Swin Transformer Ensemble."
 )
 
 CLASS_NAMES = [
@@ -34,15 +34,9 @@ CLASS_NAMES = [
 ]
 
 # -----------------------------------------------------------------------------
-# 2. Google Drive File IDs Mapping (Replace with your actual IDs)
+# 2. Hugging Face Base URL (REPLACE 'YOUR_USERNAME' WITH YOUR ACTUAL USERNAME)
 # -----------------------------------------------------------------------------
-DRIVE_FILE_IDS = {
-    1: "1knWq2jfBhrAA_cUIaw2u0iEih-IUh9ir",
-    2: "11YOuy5KexQocaaDl03hFlkBWPTCN0ytr",
-    3: "1JwIi84FLbGLCftRo_9tktjjg5Mlf3GN-",
-    4: "1WwxbeukB3HIMH9OGXQOyCpN9Lp1ZcV6A",
-    5: "1w9M28roDaM49sawfROJBipcRIDKd3BDK",
-}
+HF_BASE_URL = "https://huggingface.co/YOUR_USERNAME/ocular-swin-weights/resolve/main"
 
 # -----------------------------------------------------------------------------
 # 3. Custom Feature Engineering (Dual-View Generator)
@@ -106,27 +100,28 @@ class DualViewSwinModel(nn.Module):
 
 
 # -----------------------------------------------------------------------------
-# 5. Model Loading & Auto-Downloading Function
+# 5. Model Loading & Hugging Face Auto-Downloading Function
 # -----------------------------------------------------------------------------
-
 @st.cache_resource
 def load_single_fold_model(fold_num):
-    weights_path = f"final_swin_fold_{fold_num}.pth"
+    filename = f"final_swin_fold_{fold_num}.pth"
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    # Download weights if not locally cached
-    if not os.path.exists(weights_path):
-        file_id = DRIVE_FILE_IDS.get(fold_num)
-        if not file_id or "FILE_ID_" in file_id:
-            st.error(f"Google Drive File ID for Fold {fold_num} is missing or unconfigured.")
-            st.stop()
-            
-        with st.spinner(f"Downloading model weights for Fold {fold_num} from Google Drive..."):
-            # Using gdown's id parameter directly
-            gdown.download(id=file_id, output=weights_path, quiet=False)
+    # Download weights from Hugging Face if not locally cached
+    if not os.path.exists(filename):
+        url = f"{HF_BASE_URL}/{filename}"
+        with st.spinner(f"Downloading model weights for Fold {fold_num} from Hugging Face..."):
+            response = requests.get(url, stream=True)
+            if response.status_code == 200:
+                with open(filename, "wb") as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
+            else:
+                st.error(f"Failed to download Fold {fold_num} weights from Hugging Face (Status code: {response.status_code}).")
+                st.stop()
             
     model = DualViewSwinModel(num_classes=6)
-    checkpoint = torch.load(weights_path, map_location=device)
+    checkpoint = torch.load(filename, map_location=device)
     
     if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
         model.load_state_dict(checkpoint["state_dict"])
