@@ -37,11 +37,11 @@ CLASS_NAMES = [
 # 2. Google Drive File IDs Mapping (Replace with your actual IDs)
 # -----------------------------------------------------------------------------
 DRIVE_FILE_IDS = {
-    1: "https://drive.google.com/file/d/1knWq2jfBhrAA_cUIaw2u0iEih-IUh9ir/view?usp=drive_link",
-    2: "https://drive.google.com/file/d/11YOuy5KexQocaaDl03hFlkBWPTCN0ytr/view?usp=drive_link",
-    3: "https://drive.google.com/file/d/1JwIi84FLbGLCftRo_9tktjjg5Mlf3GN-/view?usp=drive_link",
-    4: "https://drive.google.com/file/d/1WwxbeukB3HIMH9OGXQOyCpN9Lp1ZcV6A/view?usp=drive_link",
-    5: "https://drive.google.com/file/d/1w9M28roDaM49sawfROJBipcRIDKd3BDK/view?usp=drive_link",
+    1: "1knWq2jfBhrAA_cUIaw2u0iEih-IUh9ir",
+    2: "11YOuy5KexQocaaDl03hFlkBWPTCN0ytr",
+    3: "1JwIi84FLbGLCftRo_9tktjjg5Mlf3GN-",
+    4: "1WwxbeukB3HIMH9OGXQOyCpN9Lp1ZcV6A",
+    5: "1w9M28roDaM49sawfROJBipcRIDKd3BDK",
 }
 
 # -----------------------------------------------------------------------------
