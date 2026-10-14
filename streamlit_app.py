@@ -122,7 +122,7 @@ def load_single_fold_model(fold_num):
             
         with st.spinner(f"Downloading model weights for Fold {fold_num} from Google Drive..."):
             url = f"https://drive.google.com/uc?id={file_id}"
-            gdown.download(url, weights_path, quiet=False)
+            gdown.download(url, weights_path, quiet=False, fuzzy=True)
             
     model = DualViewSwinModel(num_classes=6)
     checkpoint = torch.load(weights_path, map_location=device)
