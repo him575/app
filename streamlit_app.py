@@ -34,9 +34,9 @@ CLASS_NAMES = [
 ]
 
 # -----------------------------------------------------------------------------
-# 2. Hugging Face Base URL
+# 2. Hugging Face Base URL (REPLACE 'YOUR_USERNAME' WITH YOUR ACTUAL USERNAME)
 # -----------------------------------------------------------------------------
-HF_BASE_URL = "https://huggingface.co/tav1212/VKC-swin-weights/resolve/main"
+HF_BASE_URL = "https://huggingface.co/YOUR_USERNAME/ocular-swin-weights/resolve/main"
 
 # -----------------------------------------------------------------------------
 # 3. Custom Feature Engineering (Dual-View Generator)
@@ -100,9 +100,8 @@ class DualViewSwinModel(nn.Module):
 
 
 # -----------------------------------------------------------------------------
-# 5. Model Loading & Hugging Face Auto-Downloading Function
+# 5. Model Loading & Key-Remapping Auto-Downloader
 # -----------------------------------------------------------------------------
-
 @st.cache_resource
 def load_single_fold_model(fold_num):
     filename = f"final_swin_fold_{fold_num}.pth"
@@ -129,19 +128,16 @@ def load_single_fold_model(fold_num):
     else:
         state_dict = checkpoint
         
-    # --- AUTOMATIC KEY REMAPPING ---
-    # Remaps raw checkpoint keys to fit the DualViewSwinModel structure
+    # Automatic Key Remapping for checkpoints lacking branch prefixes
     new_state_dict = {}
     for k, v in state_dict.items():
         if k.startswith("global_branch.") or k.startswith("diag_branch.") or k.startswith("classifier."):
             new_state_dict[k] = v
         elif k.startswith("backbone."):
-            # Map generic backbone keys to both branches
             clean_k = k.replace("backbone.", "")
             new_state_dict[f"global_branch.{clean_k}"] = v
             new_state_dict[f"diag_branch.{clean_k}"] = v
         else:
-            # If keys have no prefix, map them to both branches and classifier accordingly
             if "classifier" in k or "fc" in k or "head" in k:
                 new_state_dict[k.replace("model.", "")] = v
             else:
@@ -172,11 +168,11 @@ if uploaded_file is not None:
     
     col1, col2 = st.columns(2)
     with col1:
-        st.image(raw_image, caption="Global RGB View", use_column_width=True)
+        st.image(raw_image, caption="Global RGB View")
     
     with col2:
         diag_image = create_diagnostic_view(raw_image)
-        st.image(diag_image, caption="Diagnostic View (CLAHE/Green/Unsharp)", use_column_width=True)
+        st.image(diag_image, caption="Diagnostic View (CLAHE/Green/Unsharp)")
         
     if st.button("Run Diagnostic Analysis"):
         with st.spinner("Running 5-Fold Ensemble Committee Analysis..."):
