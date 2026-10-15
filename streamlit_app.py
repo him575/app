@@ -109,16 +109,31 @@ def load_single_fold_model(fold_num):
     filename = f"final_swin_fold_{fold_num}.pth"
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    try:
+    # Exact repository ID on Hugging Face
+    repo_id = "tav1212/VKC-swin-weights"
+    
+    # Download weights if not cached locally
+    if not os.path.exists(filename):
+        url = f"https://huggingface.co/{repo_id}/resolve/main/{filename}"
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        
         with st.spinner(f"Downloading model weights for Fold {fold_num} from Hugging Face..."):
-            # Automatically downloads and caches the file securely via Hugging Face Hub API
-            weights_path = hf_hub_download(
-                repo_id="tav1212/VKC-swin-weights",  # <-- REPLACE WITH YOUR ACTUAL HF USERNAME/REPO
-                filename=filename
-            )
-    except Exception as e:
-        st.error(f"Failed to download Fold {fold_num} weights. Ensure your repository is **Public** and the repo ID is correct. Error: {e}")
-        st.stop()
+            try:
+                # Try downloading via hf_hub_download first
+                weights_path = hf_hub_download(repo_id=repo_id, filename=filename)
+            except Exception:
+                # Fallback to direct HTTP stream if hf_hub_download encounters auth checks
+                response = requests.get(url, headers=headers, stream=True)
+                if response.status_code == 200:
+                    with open(filename, "wb") as f:
+                        for chunk in response.iter_content(chunk_size=8192):
+                            f.write(chunk)
+                    weights_path = filename
+                else:
+                    st.error(f"Failed to download Fold {fold_num} (HTTP Status {response.status_code}). Ensure repository 'tav1212/VKC-swin-weights' is set to Public.")
+                    st.stop()
+    else:
+        weights_path = filename
             
     model = DualViewSwinModel(num_classes=6)
     checkpoint = torch.load(weights_path, map_location=device)
@@ -128,7 +143,7 @@ def load_single_fold_model(fold_num):
     else:
         state_dict = checkpoint
         
-    # Automatic Key Remapping for checkpoints lacking branch prefixes
+    # Remap state dict keys dynamically to match DualViewSwinModel architecture
     new_state_dict = {}
     for k, v in state_dict.items():
         if k.startswith("global_branch.") or k.startswith("diag_branch.") or k.startswith("classifier."):
