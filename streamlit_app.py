@@ -8,6 +8,7 @@ import numpy as np
 import cv2
 import timm
 import requests
+from huggingface_hub import hf_hub_download
 
 # -----------------------------------------------------------------------------
 # 1. Page Configuration & UI Setup
@@ -34,9 +35,9 @@ CLASS_NAMES = [
 ]
 
 # -----------------------------------------------------------------------------
-# 2. Hugging Face Base URL (REPLACE 'YOUR_USERNAME' WITH YOUR ACTUAL USERNAME)
+# 2. Hugging Face Repository Configuration
 # -----------------------------------------------------------------------------
-HF_BASE_URL = "https://huggingface.co/tav1212/VKC-swin-weights/resolve/main"
+REPO_ID = "tav1212/VKC-swin-weights"
 
 # -----------------------------------------------------------------------------
 # 3. Custom Feature Engineering (Dual-View Generator)
@@ -102,27 +103,20 @@ class DualViewSwinModel(nn.Module):
 # -----------------------------------------------------------------------------
 # 5. Model Loading & Key-Remapping Auto-Downloader
 # -----------------------------------------------------------------------------
-from huggingface_hub import hf_hub_download
-
 @st.cache_resource
 def load_single_fold_model(fold_num):
     filename = f"final_swin_fold_{fold_num}.pth"
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    # Exact repository ID on Hugging Face
-    repo_id = "tav1212/VKC-swin-weights"
-    
     # Download weights if not cached locally
     if not os.path.exists(filename):
-        url = f"https://huggingface.co/{repo_id}/resolve/main/{filename}"
+        url = f"https://huggingface.co/{REPO_ID}/resolve/main/{filename}"
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         
         with st.spinner(f"Downloading model weights for Fold {fold_num} from Hugging Face..."):
             try:
-                # Try downloading via hf_hub_download first
-                weights_path = hf_hub_download(repo_id=repo_id, filename=filename)
+                weights_path = hf_hub_download(repo_id=REPO_ID, filename=filename)
             except Exception:
-                # Fallback to direct HTTP stream if hf_hub_download encounters auth checks
                 response = requests.get(url, headers=headers, stream=True)
                 if response.status_code == 200:
                     with open(filename, "wb") as f:
@@ -130,7 +124,7 @@ def load_single_fold_model(fold_num):
                             f.write(chunk)
                     weights_path = filename
                 else:
-                    st.error(f"Failed to download Fold {fold_num} (HTTP Status {response.status_code}). Ensure repository 'tav1212/VKC-swin-weights' is set to Public.")
+                    st.error(f"Failed to download Fold {fold_num} (HTTP Status {response.status_code}). Ensure repository '{REPO_ID}' is Public.")
                     st.stop()
     else:
         weights_path = filename
@@ -192,14 +186,12 @@ if uploaded_file is not None:
     if st.button("Run Diagnostic Analysis"):
         with st.spinner("Running 5-Fold Ensemble Committee Analysis..."):
             try:
-                # Preprocess inputs
                 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
                 tensor_global = transform_pipeline(raw_image).unsqueeze(0).to(device)
                 tensor_diag = transform_pipeline(diag_image).unsqueeze(0).to(device)
                 
                 ensemble_probs = np.zeros(6)
                 
-                # Predict across all 5 folds
                 for fold in range(1, 6):
                     model, dev = load_single_fold_model(fold)
                     with torch.no_grad():
@@ -211,11 +203,9 @@ if uploaded_file is not None:
                 predicted_label = CLASS_NAMES[predicted_idx]
                 confidence = float(ensemble_probs[predicted_idx] * 100)
                 
-                # Display Prediction Results
                 st.success(f"**Predicted Diagnosis (Ensemble Consensus):** {predicted_label}")
                 st.metric(label="Ensemble Model Confidence", value=f"{confidence:.2f}%")
                 
-                # Display Probability Breakdown
                 st.subheader("Class Probability Distribution")
                 for i, class_name in enumerate(CLASS_NAMES):
                     prob_pct = float(ensemble_probs[i] * 100)
