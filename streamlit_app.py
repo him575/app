@@ -22,7 +22,7 @@ st.set_page_config(
 st.title("👁️ Anterior Ocular Diagnostic System")
 st.write(
     "Upload a photograph of an anterior segment eye condition to run diagnostic "
-    "screening using your 5-Fold Dual-View Swin Transformer Ensemble."
+    "screening using your Swin Transformer model (Single-Fold Optimized)."
 )
 
 CLASS_NAMES = [
@@ -101,11 +101,11 @@ class DualViewSwinModel(nn.Module):
 
 
 # -----------------------------------------------------------------------------
-# 5. Model Loading & Key-Remapping Auto-Downloader
+# 5. Single-Fold Model Loader & Key-Remapper
 # -----------------------------------------------------------------------------
 @st.cache_resource
-def load_single_fold_model(fold_num):
-    filename = f"final_swin_fold_{fold_num}.pth"
+def load_model():
+    filename = "final_swin_fold_1.pth"
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     # Download weights if not cached locally
@@ -113,7 +113,7 @@ def load_single_fold_model(fold_num):
         url = f"https://huggingface.co/{REPO_ID}/resolve/main/{filename}"
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         
-        with st.spinner(f"Downloading model weights for Fold {fold_num} from Hugging Face..."):
+        with st.spinner("Downloading model weights for Fold 1 from Hugging Face..."):
             try:
                 weights_path = hf_hub_download(repo_id=REPO_ID, filename=filename)
             except Exception:
@@ -124,7 +124,7 @@ def load_single_fold_model(fold_num):
                             f.write(chunk)
                     weights_path = filename
                 else:
-                    st.error(f"Failed to download Fold {fold_num} (HTTP Status {response.status_code}). Ensure repository '{REPO_ID}' is Public.")
+                    st.error(f"Failed to download weights (HTTP Status {response.status_code}). Ensure repository '{REPO_ID}' is Public.")
                     st.stop()
     else:
         weights_path = filename
@@ -168,7 +168,7 @@ transform_pipeline = transforms.Compose([
 ])
 
 # -----------------------------------------------------------------------------
-# 7. User Interface & Ensemble Prediction Logic
+# 7. User Interface & Single-Model Prediction Logic
 # -----------------------------------------------------------------------------
 uploaded_file = st.file_uploader("Upload an eye image (JPG, JPEG, PNG)...", type=["jpg", "jpeg", "png"])
 
@@ -184,33 +184,29 @@ if uploaded_file is not None:
         st.image(diag_image, caption="Diagnostic View (CLAHE/Green/Unsharp)")
         
     if st.button("Run Diagnostic Analysis"):
-        with st.spinner("Running 5-Fold Ensemble Committee Analysis..."):
+        with st.spinner("Running model inference..."):
             try:
                 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
                 tensor_global = transform_pipeline(raw_image).unsqueeze(0).to(device)
                 tensor_diag = transform_pipeline(diag_image).unsqueeze(0).to(device)
                 
-                ensemble_probs = np.zeros(6)
+                model, dev = load_model()
+                with torch.no_grad():
+                    outputs = model(tensor_global, tensor_diag)
+                    probs = torch.softmax(outputs, dim=1)[0].cpu().numpy()
                 
-                for fold in range(1, 6):
-                    model, dev = load_single_fold_model(fold)
-                    with torch.no_grad():
-                        outputs = model(tensor_global, tensor_diag)
-                        fold_probs = torch.softmax(outputs, dim=1)[0].cpu().numpy()
-                        ensemble_probs += fold_probs / 5.0
-                
-                predicted_idx = int(np.argmax(ensemble_probs))
+                predicted_idx = int(np.argmax(probs))
                 predicted_label = CLASS_NAMES[predicted_idx]
-                confidence = float(ensemble_probs[predicted_idx] * 100)
+                confidence = float(probs[predicted_idx] * 100)
                 
-                st.success(f"**Predicted Diagnosis (Ensemble Consensus):** {predicted_label}")
-                st.metric(label="Ensemble Model Confidence", value=f"{confidence:.2f}%")
+                st.success(f"**Predicted Diagnosis:** {predicted_label}")
+                st.metric(label="Model Confidence", value=f"{confidence:.2f}%")
                 
                 st.subheader("Class Probability Distribution")
                 for i, class_name in enumerate(CLASS_NAMES):
-                    prob_pct = float(ensemble_probs[i] * 100)
+                    prob_pct = float(probs[i] * 100)
                     st.write(f"**{class_name}**: {prob_pct:.2f}%")
-                    st.progress(float(ensemble_probs[i]))
+                    st.progress(float(probs[i]))
                     
             except Exception as e:
                 st.error(f"Error executing model inference: {e}")
